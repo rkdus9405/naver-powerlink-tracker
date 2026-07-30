@@ -40,13 +40,15 @@ def now_kst() -> str:
 
 # ── 파워링크 추출용 JavaScript (브라우저 컨텍스트에서 실행) ──────────────
 # 전략:
-#  1) '파워링크' 라는 텍스트를 가진 헤더를 찾고, 그 근처의 리스트(li) 컨테이너를 파워링크 영역으로 본다.
-#  2) 못 찾으면, 네이버 광고 클릭 리다이렉트 도메인(adcr.naver.com) 링크를 기준으로 컨테이너를 역추적한다.
-#  3) 각 광고(li)에서 이미지/제목/원문 텍스트를 best-effort로 뽑는다.
-#     ※ 업체명·광고문구의 정확한 분리는 실제 HTML 확인 후 보정한다. 원문(raw)이 안전망이다.
+#  1) '파워링크' 헤더를 찾고, 그 근처의 리스트(li) 컨테이너를 파워링크 영역으로 본다.
+#  2) 못 찾으면 네이버 광고 리다이렉트 링크(adcr.naver.com) 기준으로 컨테이너를 역추적한다.
+#  3) 광고 항목은 '최상위 li'만 센다. 광고 밑에 붙는 확장 태그(최저수수료/무이자할부 등)는
+#     광고 li 안에 '중첩된 li'라서 별도 순위로 세면 안 된다 → 중첩 li는 제외한다.
+#  4) 각 광고에서 이미지/도메인/원문을 뽑고, 업체명·광고문구는 파이썬에서 후처리한다.
 JS_EXTRACT = r"""
 () => {
   const T = el => ((el && el.innerText) || '').replace(/\s+/g, ' ').trim();
+  const domainRe = /([a-z0-9-]+\.)+(com|co\.kr|kr|net|io|shop|me|app|biz|org|kro\.kr)(\/[^\s]*)?/i;
 
   // 1) '파워링크' 헤더 기준으로 영역 찾기
   let section = null;
@@ -54,12 +56,11 @@ JS_EXTRACT = r"""
     .filter(el => T(el) === '파워링크');
   if (leaves.length) {
     let node = leaves[0];
-    for (let i = 0; i < 7 && node; i++) {
+    for (let i = 0; i < 8 && node; i++) {
       node = node.parentElement;
       if (node && node.querySelectorAll('li').length >= 1) { section = node; break; }
     }
   }
-
   // 2) fallback: 네이버 광고 리다이렉트 링크 기준
   if (!section) {
     const a = document.querySelector('a[href*="adcr.naver.com"], a[href*="ader.naver.com"]');
@@ -72,34 +73,53 @@ JS_EXTRACT = r"""
     }
   }
 
-  const out = [];
-  if (!section) return out;
+  const res = { sectionText: '', items: [] };
+  if (!section) return res;
 
-  // 광고 항목 후보: 링크를 가진 li
-  let lis = Array.from(section.querySelectorAll('li')).filter(li => li.querySelector('a'));
-  // li 구조가 아니면, 광고 링크의 직접 부모 블록을 항목으로
-  if (lis.length === 0) {
-    const anchors = Array.from(section.querySelectorAll('a[href*="adcr.naver.com"], a[href*="ader.naver.com"]'));
-    lis = anchors.map(a => a.closest('div,li,article') || a.parentElement).filter(Boolean);
-  }
+  const allLis = Array.from(section.querySelectorAll('li'));
+  // 최상위 광고 li만: section 안에서 다른 li에 중첩되지 않은 것 + 광고처럼 '실질적'인 것
+  const adLis = allLis.filter(li => {
+    let p = li.parentElement;
+    while (p && p !== section) { if (p.tagName === 'LI') return false; p = p.parentElement; }
+    const t = T(li);
+    return !!(li.querySelector('img') || t.length > 25 || domainRe.test(t));
+  });
 
   const seen = new Set();
-  lis.forEach(li => {
+  adLis.forEach(li => {
     const raw = T(li);
     if (!raw || seen.has(raw)) return;
     seen.add(raw);
-    const img = li.querySelector('img');
-    let imageUrl = img ? (img.getAttribute('src') || img.getAttribute('data-src') || '') : '';
-    // 가장 긴 링크 텍스트를 제목(광고문구 헤드라인) 후보로
-    const links = Array.from(li.querySelectorAll('a')).map(T).filter(Boolean);
-    let title = links.length ? links.sort((a, b) => b.length - a.length)[0] : '';
-    // 표시 도메인/사이트명 후보 (짧은 텍스트 중 도메인처럼 생긴 것)
-    const siteCand = links.find(t => /\.[a-z]{2,}/i.test(t) && t.length < 40) || '';
-    out.push({ raw, imageUrl, title, site: siteCand });
+    // 이미지: searchad 이미지형 우선, 없으면 첫 img(파비콘 포함)
+    const imgs = Array.from(li.querySelectorAll('img'));
+    const big = imgs.find(im => /searchad-phinf/.test(im.src || ''));
+    const imageUrl = big ? big.src : (imgs[0] ? (imgs[0].src || '') : '');
+    // 도메인: 링크 텍스트에서 먼저, 없으면 원문에서
+    let domain = '';
+    for (const a of Array.from(li.querySelectorAll('a'))) {
+      const m = T(a).match(domainRe);
+      if (m) { domain = m[0]; break; }
+    }
+    if (!domain) { const m = raw.match(domainRe); if (m) domain = m[0]; }
+    res.items.push({ raw, imageUrl, domain });
   });
-  return out;
+  return res;
 }
 """
+
+
+def parse_item(it):
+    """원문(raw)과 도메인으로 업체명·광고문구를 분리한다.
+    네이버 파워링크 원문 순서: [브랜드명] [도메인] [제목/설명 ...]"""
+    raw = (it.get("raw") or "").strip()
+    domain = (it.get("domain") or "").strip()
+    brand, ad_copy = "", raw
+    if domain and domain in raw:
+        before, after = raw.split(domain, 1)
+        brand = before.replace("네이버 로그인", "").strip(" -|·")
+        ad_copy = after.strip(" -|·")
+    company = brand or domain
+    return company, ad_copy
 
 
 def scrape():
@@ -134,16 +154,13 @@ def scrape():
             except Exception:
                 pass
 
-            items = page.evaluate(JS_EXTRACT)
+            data = page.evaluate(JS_EXTRACT)
+            items = data.get("items", []) if isinstance(data, dict) else []
             ts = now_kst()
             for i, it in enumerate(items, start=1):
-                company = (it.get("site") or "").strip()
-                raw = (it.get("raw") or "").strip()
-                title = (it.get("title") or "").strip()
-                # 광고문구: 제목이 raw 안에 있으면 raw 전체를, 아니면 title 사용
-                ad_copy = raw if raw else title
+                company, ad_copy = parse_item(it)
                 rows.append(
-                    [ts, KEYWORD, i, company, ad_copy, it.get("imageUrl", ""), raw]
+                    [ts, KEYWORD, i, company, ad_copy, it.get("imageUrl", ""), it.get("raw", "")]
                 )
         except Exception as e:
             error = f"{type(e).__name__}: {e}"

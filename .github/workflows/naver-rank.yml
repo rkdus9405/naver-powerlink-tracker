@@ -2,8 +2,8 @@ name: naver-powerlink-rank
 
 on:
   schedule:
-    # 매시간 정각(UTC 기준) 실행 = 1시간마다. GitHub Actions 예약은 부하에 따라 몇 분 지연될 수 있음.
-    - cron: '0 * * * *'
+    # 매시 30분에 실행 = 1시간마다. 정각(0분)은 GitHub Actions 예약이 몰려 지연/누락되므로 한산한 30분으로 지정.
+    - cron: '30 * * * *'
   workflow_dispatch: {}   # 저장소 Actions 탭에서 수동 실행(Run workflow) 버튼용
 
 permissions:

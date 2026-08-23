@@ -2259,3 +2259,7 @@
 2026-08-23 18:14,월세카드결제,8,오픈페이푸드,"임대료 카드결제 오픈페이월세 임대료 및 관리비 카드결제, 2~8개월 무이자할부, 당일 및 지정일송금.",https://search.pstatic.net/sunny?src=https%3A%2F%2Fwww.open-pay.co.kr%2Ffavicon.ico&type=f30_30_png_expire24,"오픈페이푸드 open-pay.co.kr 임대료 카드결제 오픈페이월세 임대료 및 관리비 카드결제, 2~8개월 무이자할부, 당일 및 지정일송금."
 2026-08-23 18:14,월세카드결제,9,내집스캔,"결제 사고 0건, 내집스캔 무이자 할부로 부담 없이, 통장 잔고 걱정 없이 월세 카드로 납부하세요!",https://search.pstatic.net/sunny?src=https%3A%2F%2Fwww.naezipscan.com%2Ffavicon.ico&type=f30_30_png_expire24,"내집스캔 naezipscan.com 결제 사고 0건, 내집스캔 무이자 할부로 부담 없이, 통장 잔고 걱정 없이 월세 카드로 납부하세요!"
 2026-08-23 18:14,월세카드결제,10,세이프페이,"수수료~3.8% 빠른정산, 앱결제, 수기결제, SMS결제 중고카드결제",https://search.pstatic.net/sunny?src=https%3A%2F%2Fcdn.imweb.me%2Fthumbnail%2F20251118%2F0a7a3d3c1eff7.png&type=f30_30_png_expire24,"세이프페이 dcoco.co.kr 수수료~3.8% 빠른정산, 앱결제, 수기결제, SMS결제 중고카드결제"
+2026-08-23 19:00,월세카드결제,0,,"수집실패: TimeoutError: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to ""https://search.naver.com/search.naver?ie=UTF-8&sm=whl_hty&query=%EC%9B%94%EC%84%B8%EC%B9%B4%EB%93%9C%EA%B2%B0%EC%A0%9C"", waiting until ""networkidle""
+",,

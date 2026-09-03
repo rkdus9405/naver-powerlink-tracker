@@ -3233,3 +3233,7 @@ Call log:
 2026-09-04 02:14,월세카드결제,8,오픈페이푸드,"임대료 카드결제 오픈페이월세 임대료 및 관리비 카드결제, 2~8개월 무이자할부, 당일 및 지정일송금.",https://search.pstatic.net/sunny?src=https%3A%2F%2Fwww.open-pay.co.kr%2Ffavicon.ico&type=f30_30_png_expire24,"오픈페이푸드 open-pay.co.kr 임대료 카드결제 오픈페이월세 임대료 및 관리비 카드결제, 2~8개월 무이자할부, 당일 및 지정일송금."
 2026-09-04 02:14,월세카드결제,9,내집스캔,"현명하게 월세 내는 법 확인 이제 월세도 카드로 납부해서 통장 잔액 걱정 없이, 카드 혜택까지 챙겨요 이번달 월세 낼 돈 빠듯하다면? 걱정말고 쉽고 빠르게 카드로 납부하세요",https://search.pstatic.net/sunny?src=https%3A%2F%2Fwww.naezipscan.com%2Fnext%2Ffavicon.ico&type=f30_30_png_expire24,"내집스캔 naezipscan.com 현명하게 월세 내는 법 확인 이제 월세도 카드로 납부해서 통장 잔액 걱정 없이, 카드 혜택까지 챙겨요 이번달 월세 낼 돈 빠듯하다면? 걱정말고 쉽고 빠르게 카드로 납부하세요"
 2026-09-04 02:14,월세카드결제,10,몽키페이,"월세 송금 고민 끝! 언제 어디서나 손쉽게 만나는 간편한 결제 서비스, 몽키페이 몽키페이로 만나는 손쉬운 생활비 결제 솔루션",https://search.pstatic.net/sunny?src=https%3A%2F%2Fmonkeypay.co.kr%2Fhome%2Fboard_data%2Ffavicon.ico&type=f30_30_png_expire24,"네이버 로그인 몽키페이 monkeypay.co.kr 월세 송금 고민 끝! 언제 어디서나 손쉽게 만나는 간편한 결제 서비스, 몽키페이 몽키페이로 만나는 손쉬운 생활비 결제 솔루션"
+2026-09-04 04:52,월세카드결제,0,,"수집실패: TimeoutError: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to ""https://search.naver.com/search.naver?ie=UTF-8&sm=whl_hty&query=%EC%9B%94%EC%84%B8%EC%B9%B4%EB%93%9C%EA%B2%B0%EC%A0%9C"", waiting until ""networkidle""
+",,

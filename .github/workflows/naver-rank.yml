@@ -1,21 +1,31 @@
 name: naver-powerlink-rank
 
+# ── 왜 이런 구조인가 ────────────────────────────────────────────────
+# GitHub 무료 예약(cron)은 '보장'이 아니라 '노력'이다. 부하 시간대에는
+# 지연되거나 통째로 건너뛴다. 실측: 하루 48회 예약 중 실제 발화 6~7회(약 13%).
+# 그래서 '한 번 떴을 때 오래 머무르며 매시간 수집하는' 구조로 바꾼다.
+#  - 예약이 뜨면 즉시 1회 수집하고, 그 뒤 최대 5시간 30분 동안 매시 02분에 수집
+#  - 다음 예약이 뜨면 cancel-in-progress 로 낡은 루프를 끊고 새 루프를 시작
+#  - 따라서 예약이 하루 4번만 발화해도 24시간이 덮인다
+# public 저장소라 GitHub-hosted 러너 사용 시간은 무제한이다.
+
 on:
   schedule:
-# 매시 15분 실행(시간당 1회). 정각(0분)은 GitHub 예약이 몰려 누락되므로 한산한 분에 실행.
-    - cron: '15 * * * *'
-  workflow_dispatch: {}   # 저장소 Actions 탭에서 수동 실행(Run workflow) 버튼용
+    # 매시 15분·45분. 정각(0분)은 전 세계 예약이 몰려 누락률이 높으므로 피한다.
+    - cron: '15,45 * * * *'
+  workflow_dispatch: {}   # Actions 탭 수동 실행(Run workflow) 버튼용
 
 permissions:
   contents: write         # 결과 CSV를 저장소에 커밋하기 위해 필요
 
 concurrency:
   group: naver-rank
-  cancel-in-progress: false
+  cancel-in-progress: true   # 새 예약이 뜨면 낡은 루프를 끊고 새로 시작
 
 jobs:
   track:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,8 +41,41 @@ jobs:
           pip install playwright
           python -m playwright install --with-deps chromium
 
-      - name: Run tracker
-        run: python naver_powerlink_rank.py
+      - name: Hourly collect loop (PC + 모바일)
+        run: |
+          set -u
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          DEADLINE=$(( $(date +%s) + 330*60 ))   # 5시간 30분 뒤 루프 종료
+
+          while : ; do
+            echo "=== 수집 $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST') ==="
+            python naver_powerlink_rank.py || echo "수집 스크립트 비정상 종료 - 계속 진행"
+
+            git add rankings.csv || true
+            git add rankings_old.csv 2>/dev/null || true
+            if git diff --cached --quiet; then
+              echo "변경 없음 - 커밋 생략"
+            else
+              git commit -m "rank update $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
+              PUSHED=0
+              for i in 1 2 3; do
+                if git pull --rebase --autostash && git push; then PUSHED=1; break; fi
+                echo "push 재시도 $i"; sleep 10
+              done
+              [ "$PUSHED" = "1" ] || echo "push 실패 - 다음 회차에 함께 올라감"
+            fi
+
+            NOW=$(date +%s)
+            NEXT=$(( (NOW / 3600 + 1) * 3600 + 120 ))   # 다음 정시 + 2분
+            if [ "$NEXT" -ge "$DEADLINE" ]; then
+              echo "루프 종료 - 다음 예약 발화를 기다린다"
+              break
+            fi
+            echo "다음 수집까지 $(( NEXT - NOW ))초 대기"
+            sleep $(( NEXT - NOW ))
+          done
 
       - name: Upload debug artifacts (보정용 HTML/스크린샷)
         if: always()
@@ -42,19 +85,7 @@ jobs:
           path: |
             debug_page.html
             debug_screenshot.png
+            debug_page_mobile.html
+            debug_screenshot_mobile.png
           if-no-files-found: ignore
           retention-days: 7
-
-      - name: Commit & push results
-        if: always()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add rankings.csv || true
-          if git diff --cached --quiet; then
-            echo "변경 없음 - 커밋 생략"
-          else
-            git commit -m "rank update $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
-            git pull --rebase --autostash || true
-            git push
-          fi

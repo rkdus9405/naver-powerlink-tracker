@@ -208,7 +208,7 @@ def scrape_device(p, dev):
         page.goto(dev["url"], wait_until="networkidle", timeout=60000)
         page.wait_for_timeout(2500)
         # 모바일은 지연 로딩이 있어 한 번 내려준다
-        if dev["is_mobile"] and len(items) < 3:
+        if dev["is_mobile"]:
             for _ in range(3):
                 page.mouse.wheel(0, 900)
                 page.wait_for_timeout(600)
@@ -233,7 +233,7 @@ def scrape_device(p, dev):
         items = data.get("items", []) if isinstance(data, dict) else []
         mode = data.get("mode", "") if isinstance(data, dict) else ""
         diag = data.get("diag", {}) if isinstance(data, dict) else {}
-        if dev["is_mobile"]:
+        if dev["is_mobile"] and len(items) < 3:
             print(f"  [{dev['name']}] -- 구조 진단 --")
             print(f"    header={diag.get('hasHeader')} adAnchors={diag.get('adAnchors')}")
             print(f"    section={diag.get('section')}")

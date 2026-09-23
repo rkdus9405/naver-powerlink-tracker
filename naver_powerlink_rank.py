@@ -80,7 +80,7 @@ JS_EXTRACT = r"""
 () => {
   const T = el => ((el && el.innerText) || '').replace(/\s+/g, ' ').trim();
   const domainRe = /([a-z0-9-]+\.)+(com|co\.kr|kr|net|io|shop|me|app|biz|org|kro\.kr)(\/[^\s]*)?/i;
-  const AD = 'a[href*="adcr.naver.com"], a[href*="ader.naver.com"], a[href*="adcr.search.naver.com"]';
+  const AD = 'a[href*="adcr."], a[href*="ader."], a[href*="/crd/rd"], a[href*="ad.search.naver"]';
 
   let section = null;
   const leaves = Array.from(document.querySelectorAll('h2,h3,span,strong,a,div'))
@@ -109,8 +109,17 @@ JS_EXTRACT = r"""
     }
   }
 
-  const res = { items: [], mode: '' };
-  if (!section) return res;
+  const res = { items: [], mode: '', diag: {} };
+  const hosts = {};
+  Array.from(document.querySelectorAll('a[href]')).forEach(a => {
+    try { const h = new URL(a.href, location.href).hostname; hosts[h] = (hosts[h] || 0) + 1; } catch (e) {}
+  });
+  res.diag.hosts = Object.entries(hosts).sort((x, y) => y[1] - x[1]).slice(0, 12);
+  res.diag.adAnchors = document.querySelectorAll(AD).length;
+  res.diag.hasHeader = leaves.length;
+  if (!section) { res.diag.section = 'NOT_FOUND'; return res; }
+  res.diag.section = section.tagName + '.' + (section.className || '').toString().slice(0, 60) + ' li=' + section.querySelectorAll('li').length;
+  res.diag.outline = Array.from(section.children).slice(0, 8).map(c => c.tagName + '.' + (c.className || '').toString().slice(0, 30) + '[' + (c.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 40) + ']');
 
   const pick = [];
   const allLis = Array.from(section.querySelectorAll('li'));
@@ -126,15 +135,17 @@ JS_EXTRACT = r"""
   } else {
     // 모바일 등 li가 아닌 구조: 광고 링크마다 '의미 있는 블록'까지 올라간다
     res.mode = 'block';
-    const seenEl = new Set();
-    Array.from(section.querySelectorAll(AD)).forEach(a => {
-      let node = a;
-      for (let i = 0; i < 6 && node && node !== section; i++) {
-        if (T(node).length > 30) break;
-        node = node.parentElement;
-      }
-      if (node && node !== section && !seenEl.has(node)) { seenEl.add(node); pick.push(node); }
-    });
+    const anchors = Array.from(section.querySelectorAll(AD));
+    if (anchors.length) {
+      const chain = el => { const c = []; for (let n = el; n; n = n.parentElement) c.unshift(n); return c; };
+      let common = chain(anchors[0]);
+      anchors.slice(1).forEach(a => { const c = chain(a); let i = 0; while (i < common.length && i < c.length && common[i] === c[i]) i++; common = common.slice(0, i); });
+      let P = common[common.length - 1] || section;
+      let kids = Array.from(P.children).filter(ch => ch.querySelector(AD));
+      for (let i = 0; i < 4 && kids.length < 2 && P.parentElement; i++) { P = P.parentElement; kids = Array.from(P.children).filter(ch => ch.querySelector(AD)); }
+      pick.push(...kids);
+      res.parentTag = P.tagName + '.' + (P.className || '').toString().slice(0, 50) + ' kids=' + kids.length;
+    }
   }
 
   const seen = new Set();
@@ -166,7 +177,7 @@ def parse_item(it):
     brand, ad_copy = "", raw
     if domain and domain in raw:
         before, after = raw.split(domain, 1)
-        brand = before.replace("네이버 로그인", "").strip(" -|·")
+        brand = before.replace("네이버 로그인", "").replace("네이버로그인", "").strip(" -|·")
         ad_copy = after.strip(" -|·")
     company = brand or domain
     return company, ad_copy
@@ -214,6 +225,18 @@ def scrape_device(p, dev):
         data = page.evaluate(JS_EXTRACT)
         items = data.get("items", []) if isinstance(data, dict) else []
         mode = data.get("mode", "") if isinstance(data, dict) else ""
+        diag = data.get("diag", {}) if isinstance(data, dict) else {}
+        if dev["is_mobile"] and len(items) < 3:
+            print(f"  [{dev['name']}] -- 구조 진단 --")
+            print(f"    header={diag.get('hasHeader')} adAnchors={diag.get('adAnchors')}")
+            print(f"    section={diag.get('section')}")
+            print(f"    parent={data.get('parentTag')}")
+            for o in (diag.get("outline") or []):
+                print(f"    child {o}")
+            for h, n in (diag.get("hosts") or []):
+                print(f"    host {h} x {n}")
+            for j2, it2 in enumerate(items, 1):
+                print(f"    item{j2}={(it2.get('raw') or '')[:80]}")
         ts = now_kst()
         for i, it in enumerate(items, start=1):
             company, ad_copy = parse_item(it)

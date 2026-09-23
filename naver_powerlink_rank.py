@@ -116,6 +116,8 @@ JS_EXTRACT = r"""
   });
   res.diag.hosts = Object.entries(hosts).sort((x, y) => y[1] - x[1]).slice(0, 12);
   res.diag.adAnchors = document.querySelectorAll(AD).length;
+  res.diag.chains = Array.from(document.querySelectorAll(AD)).filter((a, i) => i % 7 === 0).slice(0, 5)
+    .map(a => { const c = []; let n = a; for (let i = 0; i < 8 && n; i++) { c.push(n.tagName + '.' + ((n.className || '').toString().split(' ')[0] || '-').slice(0, 16)); n = n.parentElement; } return c.join(' < '); });
   res.diag.hasHeader = leaves.length;
   if (!section) { res.diag.section = 'NOT_FOUND'; return res; }
   res.diag.section = section.tagName + '.' + (section.className || '').toString().slice(0, 60) + ' li=' + section.querySelectorAll('li').length;
@@ -139,18 +141,16 @@ JS_EXTRACT = r"""
     const anchors = Array.from(document.querySelectorAll(AD));
     const cand = [];
     anchors.forEach(a => {
-      const li = a.closest('li');
-      if (li) {
-        let outer = li, p = li.parentElement;
-        while (p) { const l = p.closest('li'); if (!l) break; outer = l; p = l.parentElement; }
-        if (hasDom(outer) && cand.indexOf(outer) < 0) cand.push(outer);
-        return;
+      let li = a.closest('li');
+      for (let i = 0; i < 5 && li && !hasDom(li); i++) {
+        li = li.parentElement ? li.parentElement.closest('li') : null;
       }
+      if (li && hasDom(li)) { if (cand.indexOf(li) < 0) cand.push(li); return; }
       let m = a;
       for (let i = 0; i < 10 && m && m.parentElement && !hasDom(m); i++) m = m.parentElement;
       if (m && hasDom(m) && cand.indexOf(m) < 0) cand.push(m);
     });
-    const tops = cand.filter(el => !cand.some(o => o !== el && o.contains(el)));
+    const tops = cand.filter(el => !cand.some(o => o !== el && el.contains(o)));
     pick.push(...tops);
     res.parentTag = 'anchors=' + anchors.length + ' cand=' + cand.length + ' tops=' + tops.length;
   }
@@ -238,6 +238,8 @@ def scrape_device(p, dev):
             print(f"    header={diag.get('hasHeader')} adAnchors={diag.get('adAnchors')}")
             print(f"    section={diag.get('section')}")
             print(f"    parent={data.get('parentTag')}")
+            for c in (diag.get("chains") or []):
+                print(f"    chain {c}")
             for o in (diag.get("outline") or []):
                 print(f"    child {o}")
             for h, n in (diag.get("hosts") or []):

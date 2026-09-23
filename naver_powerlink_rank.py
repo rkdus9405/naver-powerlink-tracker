@@ -135,17 +135,23 @@ JS_EXTRACT = r"""
   } else {
     // 모바일 등 li가 아닌 구조: 광고 링크마다 '의미 있는 블록'까지 올라간다
     res.mode = 'block';
-    const anchors = Array.from(section.querySelectorAll(AD));
-    if (anchors.length) {
-      const chain = el => { const c = []; for (let n = el; n; n = n.parentElement) c.unshift(n); return c; };
-      let common = chain(anchors[0]);
-      anchors.slice(1).forEach(a => { const c = chain(a); let i = 0; while (i < common.length && i < c.length && common[i] === c[i]) i++; common = common.slice(0, i); });
-      let P = common[common.length - 1] || section;
-      let kids = Array.from(P.children).filter(ch => ch.querySelector(AD));
-      for (let i = 0; i < 4 && kids.length < 2 && P.parentElement; i++) { P = P.parentElement; kids = Array.from(P.children).filter(ch => ch.querySelector(AD)); }
-      pick.push(...kids);
-      res.parentTag = P.tagName + '.' + (P.className || '').toString().slice(0, 50) + ' kids=' + kids.length;
-    }
+    const hasDom = el => domainRe.test(T(el));
+    const anchors = Array.from(document.querySelectorAll(AD));
+    const cand = [];
+    anchors.forEach(a => {
+      let n = a;
+      for (let i = 0; i < 10 && n && n.parentElement; i++) {
+        const sibs = Array.from(n.parentElement.children).filter(c => c.querySelector(AD) || c.matches(AD));
+        if (sibs.length >= 2 && hasDom(n)) { if (cand.indexOf(n) < 0) cand.push(n); return; }
+        n = n.parentElement;
+      }
+      let m = a;
+      for (let i = 0; i < 10 && m && m.parentElement && !hasDom(m); i++) m = m.parentElement;
+      if (m && hasDom(m) && cand.indexOf(m) < 0) cand.push(m);
+    });
+    const tops = cand.filter(el => !cand.some(o => o !== el && o.contains(el)));
+    pick.push(...tops);
+    res.parentTag = 'doc anchors=' + anchors.length + ' cand=' + cand.length + ' tops=' + tops.length;
   }
 
   const seen = new Set();
@@ -226,7 +232,7 @@ def scrape_device(p, dev):
         items = data.get("items", []) if isinstance(data, dict) else []
         mode = data.get("mode", "") if isinstance(data, dict) else ""
         diag = data.get("diag", {}) if isinstance(data, dict) else {}
-        if dev["is_mobile"] and len(items) < 3:
+        if dev["is_mobile"]:
             print(f"  [{dev['name']}] -- 구조 진단 --")
             print(f"    header={diag.get('hasHeader')} adAnchors={diag.get('adAnchors')}")
             print(f"    section={diag.get('section')}")

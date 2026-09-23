@@ -208,7 +208,7 @@ def scrape_device(p, dev):
         page.goto(dev["url"], wait_until="networkidle", timeout=60000)
         page.wait_for_timeout(2500)
         # 모바일은 지연 로딩이 있어 한 번 내려준다
-        if dev["is_mobile"]:
+        if dev["is_mobile"] and len(items) < 3:
             for _ in range(3):
                 page.mouse.wheel(0, 900)
                 page.wait_for_timeout(600)

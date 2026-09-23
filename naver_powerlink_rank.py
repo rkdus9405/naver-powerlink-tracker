@@ -127,7 +127,7 @@ JS_EXTRACT = r"""
     let p = li.parentElement;
     while (p && p !== section) { if (p.tagName === 'LI') return false; p = p.parentElement; }
     const t = T(li);
-    return !!(li.querySelector('img') || t.length > 25 || domainRe.test(t));
+    return domainRe.test(t) && t.length > 20;
   });
   if (topLis.length >= 2) {
     res.mode = 'li';
@@ -139,11 +139,12 @@ JS_EXTRACT = r"""
     const anchors = Array.from(document.querySelectorAll(AD));
     const cand = [];
     anchors.forEach(a => {
-      let n = a;
-      for (let i = 0; i < 10 && n && n.parentElement; i++) {
-        const sibs = Array.from(n.parentElement.children).filter(c => c.querySelector(AD) || c.matches(AD));
-        if (sibs.length >= 2 && hasDom(n)) { if (cand.indexOf(n) < 0) cand.push(n); return; }
-        n = n.parentElement;
+      const li = a.closest('li');
+      if (li) {
+        let outer = li, p = li.parentElement;
+        while (p) { const l = p.closest('li'); if (!l) break; outer = l; p = l.parentElement; }
+        if (hasDom(outer) && cand.indexOf(outer) < 0) cand.push(outer);
+        return;
       }
       let m = a;
       for (let i = 0; i < 10 && m && m.parentElement && !hasDom(m); i++) m = m.parentElement;
@@ -151,7 +152,7 @@ JS_EXTRACT = r"""
     });
     const tops = cand.filter(el => !cand.some(o => o !== el && o.contains(el)));
     pick.push(...tops);
-    res.parentTag = 'doc anchors=' + anchors.length + ' cand=' + cand.length + ' tops=' + tops.length;
+    res.parentTag = 'anchors=' + anchors.length + ' cand=' + cand.length + ' tops=' + tops.length;
   }
 
   const seen = new Set();

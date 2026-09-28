@@ -26,8 +26,14 @@ CSV_PATH = "rankings.csv"
 OLD_CSV_PATH = "rankings_old.csv"
 HEADER = ["체크시각(KST)", "기기", "키워드", "순위", "업체명", "광고문구", "이미지URL", "원문(raw)"]
 
-# 목록에 없을 때 '미노출' 줄을 남길 업체
-WATCH = ["단비페이", "자리페이", "사장님페이"]
+# 목록에 없을 때 '미노출' 줄을 남길 업체 — {미노출 줄에 쓸 이름: [같은 회사로 보는 이름·도메인]}
+# 자리페이와 자리톡은 같은 회사다(2026-09-28 사용자 지정). 둘 중 하나라도 뜨면 '노출'로 본다.
+# 광고로 뜬 줄은 화면에 보인 이름(자리페이 또는 자리톡) 그대로 기록하고, 보고서가 한 업체로 묶는다.
+WATCH_GROUPS = {
+    "단비페이": ["단비페이", "danbipay"],
+    "자리페이/자리톡": ["자리페이", "자리톡", "zaripay", "zaritalk"],
+    "사장님페이": ["사장님페이", "sajangpay"],
+}
 
 UA_PC = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -260,14 +266,29 @@ def scrape_device(p, dev):
     return rows, error
 
 
+def _ad_head(r):
+    """광고 한 줄에서 '누구의 광고인지'를 가리는 부분만: 업체명 + 원문 앞 60자(브랜드명·도메인 자리).
+    원문 전체를 보면 연관검색어 등에 섞인 브랜드명 때문에 노출로 오판한다(2026-09-23 모바일 7회차)."""
+    return ((r[4] or "") + " " + (r[7] or "")[:60]).lower()
+
+
+def watch_label(company):
+    """업체명이 중점 그룹에 속하면 그룹 이름, 아니면 빈 문자열."""
+    c = (company or "").lower()
+    for label, aliases in WATCH_GROUPS.items():
+        if any(a.lower() in c for a in aliases):
+            return label
+    return ""
+
+
 def add_missing_watch(rows, device_name):
-    """중점 업체가 목록에 없으면 순위 0 / '미노출' 로 한 줄 남긴다."""
+    """중점 업체(그룹)가 목록에 없으면 순위 0 / '미노출' 로 한 줄 남긴다."""
     ts = now_kst()
-    blob = " ".join((r[4] or "") + " " + (r[7] or "") for r in rows)
+    heads = [_ad_head(r) for r in rows]
     extra = []
-    for name in WATCH:
-        if name not in blob:
-            extra.append([ts, device_name, KEYWORD, 0, name, "미노출", "", ""])
+    for label, aliases in WATCH_GROUPS.items():
+        if not any(a.lower() in h for h in heads for a in aliases):
+            extra.append([ts, device_name, KEYWORD, 0, label, "미노출", "", ""])
     return extra
 
 
@@ -320,7 +341,8 @@ def main():
             shown = [r for r in rows if r[3] != 0]
             print(f"[{now_kst()}] {dev['name']} 파워링크 {len(shown)}건 기록 완료")
             for r in shown:
-                print(f"    {r[3]}위 | {r[4][:20]} | {r[5][:40]}")
+                tag = f"  ★ 중점({watch_label(r[4])})" if watch_label(r[4]) else ""
+                print(f"    {r[3]}위 | {r[4][:20]} | {r[5][:40]}{tag}")
             for r in rows:
                 if r[3] == 0:
                     print(f"    -- {r[4]} 미노출")
